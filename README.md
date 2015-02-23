@@ -5,12 +5,16 @@ Distributed Mutex locking using a redis.
 ## Introduction
 
 Sera allows mutual exclusive locking for a cluster of servers. It's normal use case is to
-stopping several cronjobs running at the same time.
+prevent several cronjobs or scheduled tasks running at the same time.
+
+> Distributed locks are a very useful primitive in many environments where different 
+> processes require to operate with shared resources in a mutually exclusive way.
+>
+> [Distributed locks with Redis](http://redis.io/topics/distlock)
 
 ## Usage
 
 The normal use case is in a cronjob or scheduled services
-
 
 	sera <expiry in seconds> <command to run> < .. arguments and flags to command>
 
@@ -35,5 +39,6 @@ might expire the lock and start the task.
  - Configurable # of retries
  - Configurable delay between retries
  - Syslog logging
+ - Warnings if all redis servers are unreachable 
 
 
