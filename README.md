@@ -11,6 +11,9 @@ stopping several cronjobs running at the same time.
 
 The normal use case is in a cronjob or scheduled services
 
+
+	sera <expiry in seconds> <command to run> < .. arguments and flags to command>
+
 Example cronjob:
 
 	* * * * * root /usr/local/bin/sera 20 /bin/long-running-task --parameter hello
