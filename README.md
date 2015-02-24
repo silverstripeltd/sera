@@ -35,7 +35,7 @@ might expire the lock and start the task.
 
 ## Todo
 
- - Configurable redis endpoint
+ - Configurable redis endpoint (no it only connects to redis on localhost)
  - Configurable # of retries
  - Configurable delay between retries
  - Syslog logging
