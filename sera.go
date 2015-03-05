@@ -7,10 +7,10 @@ package main
 import (
 	"errors"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -24,9 +24,13 @@ func main() {
 
 func realMain() int {
 
-	var err error
-
 	logger := &VerboseLog{}
+
+	conf, err := NewConfig("conf.json")
+	if err != nil {
+		logger.Printf("%s\n", err)
+		return 2
+	}
 
 	keyExpiry, err := Expiry()
 	if err != nil {
@@ -34,18 +38,11 @@ func realMain() int {
 		return 2
 	}
 
-	// the key name used for locking, should be unique per environment and command
-	keyName := "platformers-test-dev1"
+	keyName := strings.Join(os.Args[2:], " ")
 
-	logger.Printf("expiry: %s, name: %s\n", keyExpiry, keyName)
+	logger.Printf("expiry: %s, name: '%s'\n", keyExpiry, keyName)
 
-	addrs := []net.Addr{
-		&net.TCPAddr{Port: 6379, IP: net.ParseIP("127.0.0.1")},
-		&net.TCPAddr{Port: 6380, IP: net.ParseIP("127.0.0.1")},
-		&net.TCPAddr{Port: 6381, IP: net.ParseIP("127.0.0.1")},
-	}
-
-	mutex, err := NewMutex(keyName, addrs, logger)
+	mutex, err := MutexFactory(conf, keyName, keyExpiry, logger)
 
 	if err != nil {
 		if err == ErrNoConnect {
@@ -57,13 +54,6 @@ func realMain() int {
 		}
 	}
 
-	// Duration for which the lock is valid
-	mutex.Expiry = keyExpiry
-	// Number of attempts to acquire lock before admitting failure, DefaultTries if 0
-	mutex.Tries = 16
-	// Delay between two attempts to acquire lock
-	mutex.Delay = keyExpiry / time.Duration(mutex.Tries)
-
 	err = mutex.Lock()
 	if err != nil {
 		logger.Printf("%s\n", err)
@@ -74,23 +64,29 @@ func realMain() int {
 	cmd, err := Command()
 	if err != nil {
 		logger.Printf("%s\n", err)
-		return 2
+		return 127
 	}
 	cmd.Args = os.Args[2:]
 
-	var stdout io.ReadCloser
-	stdout, err = cmd.StdoutPipe()
-
-	go io.Copy(os.Stdout, stdout)
-
-	var stderr io.ReadCloser
-	stderr, err = cmd.StderrPipe()
-
-	go io.Copy(os.Stderr, stderr)
-
-	if err := cmd.Start(); err != nil {
-        logger.Printf("arg, Fail!")
+	err = PipeCommandOutput(cmd)
+	if err != nil {
+		logger.Printf("%s\n", err)
 		return 2
+	}
+
+	exitStatus, err := RunCommand(cmd)
+	if err != nil {
+		logger.Printf("%s\n", err)
+		return exitStatus
+	}
+
+	return exitStatus
+}
+
+func RunCommand(cmd *exec.Cmd) (existatus int, err error) {
+	// generic failure
+	if err := cmd.Start(); err != nil {
+		return 2, err
 	}
 
 	if err := cmd.Wait(); err != nil {
@@ -101,14 +97,56 @@ func realMain() int {
 			// defined for both Unix and Windows and in both cases has
 			// an ExitStatus() method with the same signature.
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				return status.ExitStatus()
+				return status.ExitStatus(), nil
 			}
 		}
-        logger.Printf("Command failed with %s\n", err)
+		return 2, err
+	}
+	return 0, nil
+}
 
+func MutexFactory(conf Config, keyName string, expiry time.Duration, logger Logger) (Locker, error) {
+
+	if conf.Type() == "redis" {
+
+//        for server := range conf.Servers {
+//            logger.Printf("%s\n", server)
+//        }
+
+		mutex, err := NewRedisMutex(keyName, conf.Backends(), logger)
+
+		// Duration for which the lock is valid
+		mutex.Expiry = expiry
+		// Number of attempts to acquire lock before admitting failure, DefaultTries if 0
+		mutex.Tries = 16
+		// Delay between two attempts to acquire lock
+		mutex.Delay = mutex.Expiry / time.Duration(mutex.Tries)
+
+		return mutex, err
 	}
 
-	return 0
+	return nil, errors.New("Could not find Locker for backend type '" + conf.Type() + "'")
+}
+
+// get the commands stdout and stderr
+func PipeCommandOutput(cmd *exec.Cmd) (err error) {
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	// get the commands stdout and stderr
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+
+	// As soon the command prints to its stdout/stderr, print to the "real" stdout/stderr
+	go io.Copy(os.Stdout, stdout)
+	go io.Copy(os.Stderr, stderr)
+
+	return nil
 }
 
 func Expiry() (expiry time.Duration, err error) {

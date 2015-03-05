@@ -19,7 +19,7 @@ func (log *VerboseLog) Printf(format string, a ...interface{}) (n int, err error
 }
 
 func (log *VerboseLog) Debugf(format string, a ...interface{}) (n int, err error) {
-    format = time.Now().Format(time.RFC3339) + " " + format
+	format = time.Now().Format(time.RFC3339) + " " + format
 	return fmt.Fprintf(os.Stdout, format, a...)
 }
 

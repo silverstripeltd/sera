@@ -8,7 +8,7 @@ import (
 func TestNoAddresses(t *testing.T) {
 	ui := &SilentLog{}
 	addrs := []net.Addr{}
-	_, err := NewMutex("keyname", addrs, ui)
+	_, err := NewRedisMutex("keyname", addrs, ui)
 	expected := "redis: addrs is empty"
 	if err.Error() != expected {
 		t.Errorf("got '%s', expected '%v'", err.Error(), expected)
@@ -17,7 +17,7 @@ func TestNoAddresses(t *testing.T) {
 
 func TestCantConnect(t *testing.T) {
 	ui := &SilentLog{}
-	_, err := NewMutex("keyname", []net.Addr{
+	_, err := NewRedisMutex("keyname", []net.Addr{
 		&net.TCPAddr{Port: 6379, IP: net.ParseIP("10.0.0.0")},
 	}, ui)
 	expected := "Failed to connect to any redis server"
@@ -33,7 +33,7 @@ func TestCantConnect(t *testing.T) {
 
 func TestCanConnect(t *testing.T) {
 	ui := &SilentLog{}
-	m, err := NewMutex("keyname", []net.Addr{
+	m, err := NewRedisMutex("keyname", []net.Addr{
 		&net.TCPAddr{Port: 6379, IP: net.ParseIP("127.0.0.1")},
 	}, ui)
 
@@ -66,7 +66,7 @@ func TestCanConnect(t *testing.T) {
 
 func TestCanLock(t *testing.T) {
 	ui := &SilentLog{}
-	m, _ := NewMutex("keyname", []net.Addr{
+	m, _ := NewRedisMutex("keyname", []net.Addr{
 		&net.TCPAddr{Port: 6379, IP: net.ParseIP("127.0.0.1")},
 	}, ui)
 
