@@ -6,7 +6,7 @@ import (
 
 func TestImport(t *testing.T) {
 
-	conf, err := NewConfig("conf.json")
+	conf, err := NewConfig("test_fixtures/redis_conf.json")
 	if err != nil {
 		t.Errorf("%s\n", err)
 		return

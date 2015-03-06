@@ -81,11 +81,11 @@ func TestCanLock(t *testing.T) {
 	}
 }
 
-func BenchmarkLock(b *testing.B) {
-    ui := &SilentLog{}
-    m, _ := NewRedisMutex("keyname", []string{"127.0.0.1:6379"}, ui)
-    for i := 0; i < b.N; i++ {
-        m.Lock()
-        m.Unlock()
-    }
+func BenchmarkLockUnlock(b *testing.B) {
+	ui := &SilentLog{}
+	m, _ := NewRedisMutex("keyname", []string{"127.0.0.1:6379"}, ui)
+	for i := 0; i < b.N; i++ {
+		m.Lock()
+		m.Unlock()
+	}
 }

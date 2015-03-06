@@ -12,6 +12,18 @@ import (
 // ensure the RedisMutex follows the Locker interface
 var _ = Locker(&RedisMutex{})
 
+type RedisConfig struct {
+	Servers []string
+}
+
+func (c *RedisConfig) Type() string {
+	return "redis"
+}
+
+func (c *RedisConfig) Backends() []string {
+	return c.Servers
+}
+
 // Fields of a Mutex must not be changed after first use.
 type RedisMutex struct {
 	Name   string        // Resouce name
@@ -33,7 +45,6 @@ type RedisMutex struct {
 	logger Logger
 }
 
-
 // NewMutex returns a new Mutex on a named resource connected to the Redis instances at given addresses.
 func NewRedisMutex(name string, servers []string, logger Logger) (*RedisMutex, error) {
 	if len(servers) == 0 {
@@ -44,7 +55,7 @@ func NewRedisMutex(name string, servers []string, logger Logger) (*RedisMutex, e
 
 	nodes := []*redis.Client{}
 	for _, addr := range servers {
-        logger.Printf("%s\n", addr)
+		logger.Printf("%s\n", addr)
 		node, err := redis.DialTimeout("tcp", addr, timeout)
 		if err == nil {
 			nodes = append(nodes, node)
@@ -92,6 +103,11 @@ func (m *RedisMutex) Lock() error {
 		delay = DefaultDelay
 	}
 
+    factor := m.Factor
+    if factor == 0 {
+        factor = DefaultFactor
+    }
+
 	for i := 0; i < retries; i++ {
 		n := 0
 		start := time.Now()
@@ -112,11 +128,6 @@ func (m *RedisMutex) Lock() error {
 			}
 			m.logger.Debugf("Lock aquired on %s\n", node.Conn.RemoteAddr())
 			n += 1
-		}
-
-		factor := m.Factor
-		if factor == 0 {
-			factor = DefaultFactor
 		}
 
 		until := time.Now().Add(expiry - time.Now().Sub(start) - time.Duration(int64(float64(expiry)*factor)) + 2*time.Millisecond)

@@ -9,19 +9,7 @@ import (
 
 type Config interface {
 	Type() string
-    Backends() []string
-}
-
-type RedisConfig struct {
-	Servers []string
-}
-
-func (c *RedisConfig) Type() string {
-	return "redis"
-}
-
-func (c *RedisConfig) Backends() []string {
-    return c.Servers
+	Backends() []string
 }
 
 func NewConfig(path string) (Config, error) {
@@ -42,6 +30,12 @@ func NewConfig(path string) (Config, error) {
 		config := &RedisConfig{}
 		err := mapstructure.Decode(data, &config)
 		return config, err
+
+	case "mysql":
+		config := &MysqlConfig{}
+		err := mapstructure.Decode(data, &config)
+		return config, err
+
 	}
 
 	return nil, errors.New("Can't find config backend '" + data["backend"].(string) + "' from " + path)

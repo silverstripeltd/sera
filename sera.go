@@ -108,20 +108,24 @@ func RunCommand(cmd *exec.Cmd) (existatus int, err error) {
 func MutexFactory(conf Config, keyName string, expiry time.Duration, logger Logger) (Locker, error) {
 
 	if conf.Type() == "redis" {
-
-//        for server := range conf.Servers {
-//            logger.Printf("%s\n", server)
-//        }
-
 		mutex, err := NewRedisMutex(keyName, conf.Backends(), logger)
-
 		// Duration for which the lock is valid
 		mutex.Expiry = expiry
 		// Number of attempts to acquire lock before admitting failure, DefaultTries if 0
 		mutex.Tries = 16
 		// Delay between two attempts to acquire lock
 		mutex.Delay = mutex.Expiry / time.Duration(mutex.Tries)
+		return mutex, err
+	}
 
+	if conf.Type() == "mysql" {
+		mutex, err := NewMysqlMutex(keyName, conf.Backends(), logger)
+		// Duration for which the lock is valid
+		mutex.Expiry = expiry
+		// Number of attempts to acquire lock before admitting failure, DefaultTries if 0
+		//        mutex.Tries = 16
+		// Delay between two attempts to acquire lock
+		//        mutex.Delay = mutex.Expiry / time.Duration(mutex.Tries)
 		return mutex, err
 	}
 
