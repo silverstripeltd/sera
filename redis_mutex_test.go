@@ -1,15 +1,13 @@
 package main
 
 import (
-	"net"
 	"testing"
 )
 
 func TestNoAddresses(t *testing.T) {
-	ui := &SilentLog{}
-	addrs := []net.Addr{}
-	_, err := NewRedisMutex("keyname", addrs, ui)
-	expected := "redis: addrs is empty"
+	ui := &VerboseLog{}
+	_, err := NewRedisMutex("keyname", []string{}, ui)
+	expected := "redis: servers are empty"
 	if err.Error() != expected {
 		t.Errorf("got '%s', expected '%v'", err.Error(), expected)
 	}
@@ -17,9 +15,7 @@ func TestNoAddresses(t *testing.T) {
 
 func TestCantConnect(t *testing.T) {
 	ui := &SilentLog{}
-	_, err := NewRedisMutex("keyname", []net.Addr{
-		&net.TCPAddr{Port: 6379, IP: net.ParseIP("10.0.0.0")},
-	}, ui)
+	_, err := NewRedisMutex("keyname", []string{"10.0.0.0:6370"}, ui)
 	expected := "Failed to connect to any redis server"
 	if err == nil {
 		t.Errorf("no connectableredis server should have thrown an error")
@@ -33,9 +29,7 @@ func TestCantConnect(t *testing.T) {
 
 func TestCanConnect(t *testing.T) {
 	ui := &SilentLog{}
-	m, err := NewRedisMutex("keyname", []net.Addr{
-		&net.TCPAddr{Port: 6379, IP: net.ParseIP("127.0.0.1")},
-	}, ui)
+	m, err := NewRedisMutex("keyname", []string{"127.0.0.1:6379"}, ui)
 
 	if err != nil {
 		t.Errorf("should have been able to connect to 127.0.0.1:6370")
@@ -66,9 +60,7 @@ func TestCanConnect(t *testing.T) {
 
 func TestCanLock(t *testing.T) {
 	ui := &SilentLog{}
-	m, _ := NewRedisMutex("keyname", []net.Addr{
-		&net.TCPAddr{Port: 6379, IP: net.ParseIP("127.0.0.1")},
-	}, ui)
+	m, _ := NewRedisMutex("keyname", []string{"127.0.0.1:6379"}, ui)
 
 	err := m.Lock()
 	defer m.Unlock()
@@ -87,4 +79,13 @@ func TestCanLock(t *testing.T) {
 		t.Errorf("m.until should not be zero")
 		return
 	}
+}
+
+func BenchmarkLock(b *testing.B) {
+    ui := &SilentLog{}
+    m, _ := NewRedisMutex("keyname", []string{"127.0.0.1:6379"}, ui)
+    for i := 0; i < b.N; i++ {
+        m.Lock()
+        m.Unlock()
+    }
 }
