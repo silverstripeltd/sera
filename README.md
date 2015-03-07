@@ -1,6 +1,6 @@
 # sera
 
-Distributed Mutex locking using a redis.
+Distributed Mutex locking using a redis cluster or a mysql database.
 
 ## Introduction
 
@@ -18,7 +18,7 @@ The normal use case is in a cronjob or scheduled services
 
 	sera <expiry in seconds> <command to run> < .. arguments and flags to command>
 
-Example cronjob:
+Example usage in a cronjob:
 
 	* * * * * root /usr/local/bin/sera 20 /bin/long-running-task --parameter hello
 
@@ -28,6 +28,32 @@ will internally translate into an expiry time for this task.
 If the second argument (which is the command to run) takes longer than this time, other servers 
 might expire the lock and start the task.
 
+## Configuration for Redis
+
+`/etc/sera.json`
+
+	{
+			"backend": "redis",
+			"servers": [
+					"127.0.0.1:6379",
+					"127.0.0.1:6380",
+			]
+	}
+
+
+## Configuration for MySQL
+
+MySQL Support is experimental at this point.
+
+`/etc/sera.json`
+
+	{
+			"backend": "mysql",
+			"servers": [
+					"sera:secret@tcp(127.0.0.1:3306)/?timeout=500ms"
+			]
+	}
+
 
 ## Resources
 
@@ -35,10 +61,9 @@ might expire the lock and start the task.
 
 ## Todo
 
- - Configurable redis endpoint (no it only connects to redis on localhost)
- - Configurable # of retries
- - Configurable delay between retries
  - Syslog logging
- - Warnings if all redis servers are unreachable 
+ - Configuration file in yaml
+ - Warnings if all redis servers are unreachable
+ - parameterize if sera should run the command even if no servers can be connected to
 
 
