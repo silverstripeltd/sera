@@ -109,8 +109,9 @@ func (m *MysqlMutex) Lock() error {
 			if node == nil {
 				continue
 			}
+            // int(m.Expiry.Seconds())
 
-			sql := fmt.Sprintf("SELECT GET_LOCK('%s', %d);", m.Name, int(m.Expiry.Seconds()))
+			sql := fmt.Sprintf("SELECT GET_LOCK('%s', %d);", m.Name, 0)
 			rows, err := node.Query(sql)
 			if err != nil {
 				m.logger.Printf("%s\n", err)
