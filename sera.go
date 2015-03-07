@@ -4,6 +4,7 @@ package main
 //
 // late, too late
 // slow, tardy
+//
 import (
 	"errors"
 	"io"
@@ -26,46 +27,32 @@ func realMain() int {
 
 	logger := &VerboseLog{}
 
-	conf, err := NewConfig("conf.json")
-	if err != nil {
-		logger.Printf("%s\n", err)
-		return 2
-	}
-
-	keyExpiry, err := Expiry()
-	if err != nil {
-		logger.Printf("%s\n", err)
-		return 2
-	}
-
 	keyName := strings.Join(os.Args[2:], " ")
 
-	logger.Printf("expiry: %s, name: '%s'\n", keyExpiry, keyName)
-
-	mutex, err := MutexFactory(conf, keyName, keyExpiry, logger)
-
+	mutex, err := NewMutex("/etc/sera.json", keyName, logger)
 	if err != nil {
-		if err == ErrNoConnect {
-			logger.Debugf("No quorum servers alive, run the command anyway..\n")
-			return 1
-		} else {
-			logger.Printf("%s\n", err)
-			return 2
-		}
+		logger.Printf("%s\n", err)
+		return 2
 	}
 
-	err = mutex.Lock()
+	keyExpiry, err := expiryArg()
 	if err != nil {
+		logger.Printf("%s\n", err)
+		return 2
+	}
+
+	mutex.SetExpiry(keyExpiry)
+	mutex.SetTries(10)
+	mutex.SetDelay(keyExpiry / 10)
+	mutex.SetFactor(0.01)
+
+	if err = mutex.Lock(); err != nil {
 		logger.Printf("%s\n", err)
 		return 2
 	}
 	defer mutex.Unlock()
 
-	cmd, err := Command()
-	if err != nil {
-		logger.Printf("%s\n", err)
-		return 127
-	}
+	cmd := exec.Command(os.Args[2:][0])
 	cmd.Args = os.Args[2:]
 
 	err = PipeCommandOutput(cmd)
@@ -105,33 +92,6 @@ func RunCommand(cmd *exec.Cmd) (existatus int, err error) {
 	return 0, nil
 }
 
-func MutexFactory(conf Config, keyName string, expiry time.Duration, logger Logger) (Locker, error) {
-
-	if conf.Type() == "redis" {
-		mutex, err := NewRedisMutex(keyName, conf.Backends(), logger)
-		// Duration for which the lock is valid
-		mutex.Expiry = expiry
-		// Number of attempts to acquire lock before admitting failure, DefaultTries if 0
-		mutex.Tries = 16
-		// Delay between two attempts to acquire lock
-		mutex.Delay = mutex.Expiry / time.Duration(mutex.Tries)
-		return mutex, err
-	}
-
-	if conf.Type() == "mysql" {
-		mutex, err := NewMysqlMutex(keyName, conf.Backends(), logger)
-		// Duration for which the lock is valid
-		mutex.Expiry = expiry
-		// Number of attempts to acquire lock before admitting failure, DefaultTries if 0
-		//        mutex.Tries = 16
-		// Delay between two attempts to acquire lock
-		//        mutex.Delay = mutex.Expiry / time.Duration(mutex.Tries)
-		return mutex, err
-	}
-
-	return nil, errors.New("Could not find Locker for backend type '" + conf.Type() + "'")
-}
-
 // get the commands stdout and stderr
 func PipeCommandOutput(cmd *exec.Cmd) (err error) {
 
@@ -153,7 +113,7 @@ func PipeCommandOutput(cmd *exec.Cmd) (err error) {
 	return nil
 }
 
-func Expiry() (expiry time.Duration, err error) {
+func expiryArg() (expiry time.Duration, err error) {
 	args := os.Args[1:]
 	if len(args) < 1 {
 		err = errors.New("Usage: sera <expiry in sec> <command>")
@@ -165,21 +125,5 @@ func Expiry() (expiry time.Duration, err error) {
 		return 0, err
 	}
 	expiry = time.Duration(seconds) * time.Second
-	return
-}
-
-func Command() (cmd *exec.Cmd, err error) {
-	args := os.Args[1:]
-	if len(args) < 2 {
-		err = errors.New("Usage: sera <expiry in sec> <command>")
-		return
-	}
-
-	var path string
-	path, err = exec.LookPath(args[1])
-
-	cmd = exec.Command(path)
-	cmd.Args = os.Args[2:]
-
 	return
 }

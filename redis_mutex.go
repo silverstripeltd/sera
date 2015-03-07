@@ -20,10 +20,6 @@ func (c *RedisConfig) Type() string {
 	return "redis"
 }
 
-func (c *RedisConfig) Backends() []string {
-	return c.Servers
-}
-
 // Fields of a Mutex must not be changed after first use.
 type RedisMutex struct {
 	Name   string        // Resouce name
@@ -54,12 +50,13 @@ func NewRedisMutex(name string, servers []string, logger Logger) (*RedisMutex, e
 	timeout := 500 * time.Millisecond
 
 	nodes := []*redis.Client{}
-	for _, addr := range servers {
-		logger.Printf("%s\n", addr)
-		node, err := redis.DialTimeout("tcp", addr, timeout)
-		if err == nil {
-			nodes = append(nodes, node)
+	for _, server := range servers {
+		node, err := redis.DialTimeout("tcp", server, timeout)
+		if err != nil {
+			logger.Debugf("Can't connect to %s: '%s'\n", server, err)
+			continue
 		}
+		nodes = append(nodes, node)
 	}
 
 	if len(nodes) < 1 {
@@ -72,6 +69,22 @@ func NewRedisMutex(name string, servers []string, logger Logger) (*RedisMutex, e
 		Nodes:  nodes,
 		logger: logger,
 	}, nil
+}
+
+func (m *RedisMutex) SetExpiry(i time.Duration) {
+	m.Expiry = i
+}
+
+func (m *RedisMutex) SetTries(i int) {
+	m.Tries = i
+}
+
+func (m *RedisMutex) SetDelay(i time.Duration) {
+	m.Delay = i
+}
+
+func (m *RedisMutex) SetFactor(i float64) {
+	m.Factor = i
 }
 
 // Lock locks m.
@@ -88,27 +101,7 @@ func (m *RedisMutex) Lock() error {
 	}
 	randomValue := base64.StdEncoding.EncodeToString(b)
 
-	expiry := m.Expiry
-	if expiry == 0 {
-		expiry = DefaultExpiry
-	}
-
-	retries := m.Tries
-	if retries == 0 {
-		retries = DefaultTries
-	}
-
-	delay := m.Delay
-	if delay == 0 {
-		delay = DefaultDelay
-	}
-
-    factor := m.Factor
-    if factor == 0 {
-        factor = DefaultFactor
-    }
-
-	for i := 0; i < retries; i++ {
+	for i := 0; i < m.Tries; i++ {
 		n := 0
 		start := time.Now()
 
@@ -117,27 +110,27 @@ func (m *RedisMutex) Lock() error {
 				continue
 			}
 
-			reply := node.Cmd("set", m.Name, randomValue, "nx", "px", int(expiry/time.Millisecond))
+			reply := node.Cmd("set", m.Name, randomValue, "nx", "px", int(m.Expiry/time.Millisecond))
 			if reply.Err != nil {
-				m.logger.Debugf("During locking %s: %s\n", node.Conn.RemoteAddr(), err)
+				m.logger.Debugf("during locking %s: %s\n", node.Conn.RemoteAddr(), reply.Err)
 				continue
 			}
 			if reply.String() != "OK" {
-				m.logger.Debugf("Lock already taken on %s\n", node.Conn.RemoteAddr())
+				m.logger.Debugf("lock already taken on %s: '%s'\n", node.Conn.RemoteAddr(), reply.String())
 				continue
 			}
-			m.logger.Debugf("Lock aquired on %s\n", node.Conn.RemoteAddr())
+			m.logger.Debugf("lock aquired on %s\n", node.Conn.RemoteAddr())
 			n += 1
 		}
 
-		until := time.Now().Add(expiry - time.Now().Sub(start) - time.Duration(int64(float64(expiry)*factor)) + 2*time.Millisecond)
+		until := time.Now().Add(m.Expiry - time.Now().Sub(start) - time.Duration(int64(float64(m.Expiry)*m.Factor)) + 2*time.Millisecond)
 		if n >= m.Quorum && time.Now().Before(until) {
 			m.value = randomValue
 			m.until = until
 			return nil
 		}
 
-		// lock failed, cleanup on nodes where the lock was aquired
+		// lock failed, cleanup on nodes where the lock was acquired
 		for _, node := range m.Nodes {
 			if node == nil {
 				continue
@@ -152,21 +145,21 @@ func (m *RedisMutex) Lock() error {
             `, 1, m.Name, randomValue)
 		}
 
-		time.Sleep(delay)
+		time.Sleep(m.Delay)
 	}
 
 	return ErrFailed
 }
 
 // Unlock unlocks m.
-// It is a run-time error if m is not locked on entry to Unlock.
 func (m *RedisMutex) Unlock() {
 	m.nodem.Lock()
 	defer m.nodem.Unlock()
 
 	value := m.value
+	// It is a run-time error if m is not locked on entry to Unlock.
 	if value == "" {
-		panic("redis: unlock of unlocked mutex")
+		panic("unlock of unlocked mutex")
 	}
 
 	m.value = ""
@@ -184,14 +177,6 @@ func (m *RedisMutex) Unlock() {
 			    return 0
 			end
 		`, 1, m.Name, value)
-		m.logger.Debugf("Unlocked %s\n", node.Conn.RemoteAddr())
+		m.logger.Debugf("unlocked %s\n", node.Conn.RemoteAddr())
 	}
-}
-
-func (m *RedisMutex) Value() string {
-	return m.value
-}
-
-func (m *RedisMutex) Until() time.Time {
-	return m.until
 }
