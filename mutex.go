@@ -65,12 +65,13 @@ func NewMutex(path string, name string, logger Logger) (mutex Locker, err error)
 		mutex, err = NewMysqlMutex(name, config.Servers, logger)
 	}
 
-	if mutex != nil {
+
+	if err == nil {
 		mutex.SetDelay(DefaultDelay)
 		mutex.SetExpiry(DefaultExpiry)
 		mutex.SetTries(DefaultTries)
 		mutex.SetFactor(DefaultFactor)
 	}
 
-	return mutex, nil
+	return mutex, err
 }

@@ -69,8 +69,8 @@ func NewMysqlMutex(name string, servers []string, logger Logger) (*MysqlMutex, e
 		nodes = append(nodes, db)
 	}
 
-	if len(nodes) < 1 {
-		return nil, ErrNoConnect
+    if len(nodes) < 1 {
+        return nil, ErrNoConnect
 	}
 
 	return &MysqlMutex{
