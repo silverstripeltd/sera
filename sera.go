@@ -6,7 +6,6 @@ package main
 // slow, tardy
 //
 import (
-	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -26,6 +25,11 @@ func main() {
 func realMain() int {
 
 	logger := &VerboseLog{}
+
+    if len(os.Args) < 2 {
+        logger.Printf("Usage: sera <expiry in sec> <command>\n")
+        return 2
+    }
 
 	keyName := strings.Join(os.Args[2:], " ")
 
@@ -115,10 +119,6 @@ func PipeCommandOutput(cmd *exec.Cmd) (err error) {
 
 func expiryArg() (expiry time.Duration, err error) {
 	args := os.Args[1:]
-	if len(args) < 1 {
-		err = errors.New("Usage: sera <expiry in sec> <command>")
-		return
-	}
 
 	seconds, err := strconv.Atoi(args[0])
 	if err != nil {
