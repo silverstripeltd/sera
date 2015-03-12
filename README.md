@@ -22,8 +22,7 @@ Example usage in a cronjob:
 
 	* * * * * root /usr/local/bin/sera 20 /bin/long-running-task --parameter hello
 
-sera takes two arguments, the first one is how many seconds the task should take roughly. This 
-will internally translate into an expiry time for this task.
+sera takes two arguments, the first one is how the is how long in seconds it would take to complete the task (upper bound). After this time another instance of sera will be able to run this job.
 
 If the second argument (which is the command to run) takes longer than this time, other servers 
 might expire the lock and start the task.
