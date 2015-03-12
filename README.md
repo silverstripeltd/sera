@@ -43,7 +43,13 @@ might expire the lock and start the task.
 
 ## Configuration for MySQL
 
-MySQL Support is experimental at this point.
+MySQL Support is experimental at this point since it doesn't use the same locking mechanism as the redis mutex.
+
+It's MySQL [get_lock()](http://dev.mysql.com/doc/refman/5.0/en/miscellaneous-functions.html#function_get-lock) function. It does not use any databases or tables, it works by globally assigning a lock with a key and a timeout in seconds. The `get_lock()` will wait for that amount of seconds until it moves on. 
+
+The `get_lock()` timeout value when using `sera` is <expiry in seconds>/10 and it will try for 10 to get the lock.
+
+If the MySQL connection closes or dies, the lock will be unlocked.
 
 `/etc/sera.json`
 
