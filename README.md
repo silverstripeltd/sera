@@ -2,6 +2,8 @@
 
 Distributed Mutex locking using a mysql database
 
+[ ![Codeship Status for stojg/sera](https://codeship.com/projects/2ca45680-a6bf-0132-a0ee-26ba4349b0dd/status?branch=master)](https://codeship.com/projects/67085)
+
 ## Introduction
 
 `sera` can stop commands from running at the same time in clustered environment.
