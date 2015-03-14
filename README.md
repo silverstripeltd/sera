@@ -1,69 +1,64 @@
 # sera
 
-Distributed Mutex locking using a redis cluster or a mysql database.
+Distributed Mutex locking using a mysql database
 
 ## Introduction
 
-Sera allows mutual exclusive locking for a cluster of servers. It's normal use case is to
-prevent several cronjobs or scheduled tasks running at the same time.
+`sera` can stop commands from running at the same time in clustered environment.
+  
+For example you might have two servers running two task at the same time and this can cause
+race conditions. This is normally prevented via a Message Queue (MQ) system, but there are
+cases where using a MQ is over
 
-> Distributed locks are a very useful primitive in many environments where different 
-> processes require to operate with shared resources in a mutually exclusive way.
->
-> [Distributed locks with Redis](http://redis.io/topics/distlock)
+`sera` relies on the MySQL `get_lock()` function to ensure that only one instance in a cluster
+is running a command at any time. `get_lock()` is typically not supported in a master-master or 
+master-slave environment.
+
 
 ## Usage
 
-The normal use case is in a cronjob or scheduled services
-
-	sera <expiry in seconds> <command to run> < .. arguments and flags to command>
-
-Example usage in a cronjob:
-
-	* * * * * root /usr/local/bin/sera 20 /bin/long-running-task --parameter hello
-
-sera takes two arguments, the first one is how many seconds the task should take roughly. This 
-will internally translate into an expiry time for this task.
-
-If the second argument (which is the command to run) takes longer than this time, other servers 
-might expire the lock and start the task.
-
-## Configuration for Redis
-
-`/etc/sera.json`
-
-	{
-			"backend": "redis",
-			"servers": [
-					"127.0.0.1:6379",
-					"127.0.0.1:6380",
-			]
-	}
+	sera <wait-time-in-seconds> <command to run> < .. arguments and flags to command>
 
 
-## Configuration for MySQL
+### wait-time-in-seconds
 
-MySQL Support is experimental at this point.
+This is how many seconds sera will wait for a lock to be released until it gives up and aborts
+running the command. This number can be 0. 
+
+
+### command to run and flags
+
+The second and subsequent arguments is what command sera will execute. It will use the name of 
+the commands and arguments as the name for which the lock.
+ 
+## Example
+
+![Sera example](sera.png)
+
+
+## Configuration
+
+Sera requires a configuration file at `/etc/sera.json`. 
 
 `/etc/sera.json`
 
 	{
-			"backend": "mysql",
-			"servers": [
-					"sera:secret@tcp(127.0.0.1:3306)/?timeout=500ms"
-			]
-	}
+            "server": "sera:secret@tcp(127.0.0.1:3306)/?timeout=500ms",
+            "syslog": true,
+            "verbose": true
+    }
+    
+**server**:  A Data Source Name string for connecting to a MySQL database, as described 
+here (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[https://github.com/go-sql-driver/mysql#dsn-data-source-name]
+
+**syslog**: If sera should log errors and failed locking attempts to syslog
+
+**verbose**: if sera should print errors to stdout
 
 
-## Resources
+## Installation:
 
-[http://redis.io/topics/distlock](http://redis.io/topics/distlock)
+Add the configuration file and either:
 
-## Todo
-
- - Syslog logging
- - Configuration file in yaml
- - Warnings if all redis servers are unreachable
- - parameterize if sera should run the command even if no servers can be connected to
-
-
+ - Download a binary from the (releases)[https://github.com/stojg/sera/releases]
+ - Install via `go get github.com/stojg/sera && go install github.com/stojg/sera`
