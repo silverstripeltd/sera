@@ -14,7 +14,6 @@ cases where using a MQ is over
 is running a command at any time. `get_lock()` is typically not supported in a master-master or 
 master-slave environment.
 
-
 ## Usage
 
 	sera <wait-time-in-seconds> <command to run> < .. arguments and flags to command>
@@ -25,6 +24,10 @@ master-slave environment.
 This is how many seconds sera will wait for a lock to be released until it gives up and aborts
 running the command. This number can be 0. 
 
+<<<<<<< HEAD
+=======
+sera takes two arguments, the first one is how the is how long in seconds it would take to complete the task (upper bound). After this time another instance of sera will be able to run this job.
+>>>>>>> 53a5e4b87bde87e2670efc6bf8b280da643b3d37
 
 ### command to run and flags
 
@@ -37,8 +40,6 @@ the commands and arguments as the name for which the lock.
 
 
 ## Configuration
-
-Sera requires a configuration file at `/etc/sera.json`. 
 
 `/etc/sera.json`
 
