@@ -27,9 +27,12 @@ running the command. This number can be 0.
 ### command to run and flags
 
 The second and subsequent arguments is what command sera will execute. It will use the name of 
-the commands and arguments as the name for which the lock.
+the commands and arguments as the name for the lock.
  
 ## Example
+
+These two commands were started at roughly the same time, but only the one on the left got the lock
+first and the one to the right timed out after 5 seconds.
 
 ![Sera example](https://raw.githubusercontent.com/stojg/sera/master/usage.png)
 

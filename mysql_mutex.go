@@ -50,7 +50,6 @@ func (m *MysqlMutex) Lock() error {
 }
 
 // Unlock unlocks m.
-// It is a run-time error if m is not locked on entry to Unlock.
 func (m *MysqlMutex) Unlock() error {
 	m.nodem.Lock()
 	defer m.nodem.Unlock()
