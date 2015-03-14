@@ -24,11 +24,6 @@ master-slave environment.
 This is how many seconds sera will wait for a lock to be released until it gives up and aborts
 running the command. This number can be 0. 
 
-<<<<<<< HEAD
-=======
-sera takes two arguments, the first one is how the is how long in seconds it would take to complete the task (upper bound). After this time another instance of sera will be able to run this job.
->>>>>>> 53a5e4b87bde87e2670efc6bf8b280da643b3d37
-
 ### command to run and flags
 
 The second and subsequent arguments is what command sera will execute. It will use the name of 
@@ -36,7 +31,7 @@ the commands and arguments as the name for which the lock.
  
 ## Example
 
-![Sera example](sera.png)
+![Sera example](https://raw.githubusercontent.com/stojg/sera/master/usage.png)
 
 
 ## Configuration
