@@ -2,7 +2,7 @@
 
 Distributed Mutex locking using a mysql database
 
-[![Build Status](https://travis-ci.org/stojg/vivere.svg?branch=master)](https://travis-ci.org/stojg/vivere) | [![Coverage Status](https://coveralls.io/repos/stojg/sera/badge.svg?branch=master)](https://coveralls.io/r/stojg/sera?branch=master)
+[![Build Status](https://travis-ci.org/stojg/sera.svg?branch=master)](https://travis-ci.org/stojg/sera) [![Coverage Status](https://coveralls.io/repos/stojg/sera/badge.svg?branch=master)](https://coveralls.io/r/stojg/sera?branch=master)
 
 ## Introduction
 
