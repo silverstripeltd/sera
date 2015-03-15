@@ -28,6 +28,16 @@ var (
 	logger, _ = syslog.New(syslog.LOG_NOTICE, "sera")
 )
 
+// Define exit codes above the typical Linux exit code space, so we can
+// reflect the exit values of the actual underlying program.
+const (
+	ExitSuccess          = 0
+	ExitBadConfigFile    = 200
+	ExitBadArguments     = 201
+	ExitLockFailed       = 202
+	ExitCommandRunFailed = 203
+)
+
 // Represents the json config for sera
 type Config struct {
 	Server  string `json:"server"`
@@ -41,9 +51,9 @@ func main() {
 	// (defers aren't called with os.Exit)
 	exitStatus, err := realMain()
 
-	if err == ErrUsage {
-		fmt.Println(err)
-		os.Exit(2)
+	if exitStatus == ExitBadArguments {
+		fmt.Println(ErrUsage)
+		os.Exit(ExitBadArguments)
 	}
 
 	if err != nil {
@@ -58,16 +68,16 @@ func realMain() (int, error) {
 	// read config file
 	jsonStr, err := ioutil.ReadFile("/etc/sera.json")
 	if err != nil {
-		return 2, err
+		return ExitBadConfigFile, err
 	}
 	// Unmarshal the json string into the config struct
 	if err = json.Unmarshal(jsonStr, &conf); err != nil {
-		return 2, err
+		return ExitBadConfigFile, err
 	}
 
 	// Ensure we got all of the required arguments
 	if len(os.Args) < 3 {
-		return 2, ErrUsage
+		return ExitBadArguments, ErrUsage
 	}
 
 	// get the name of the key to use as a lock, in this case the command
@@ -77,13 +87,13 @@ func realMain() (int, error) {
 	var timeout int
 	if err := timeoutArg(&timeout); err != nil {
 		logger.Err(err.Error())
-		return 2, err
+		return ExitBadArguments, err
 	}
 
 	// create db object
 	db, err := sql.Open("mysql", conf.Server)
 	if err != nil {
-		return 2, err
+		return ExitLockFailed, err
 	}
 	defer db.Close()
 
@@ -95,7 +105,7 @@ func realMain() (int, error) {
 
 	// Try to get the lock, block until we get the lock or we reached the timeout value
 	if err = mutex.Lock(); err != nil {
-		return 2, err
+		return ExitLockFailed, err
 	}
 	defer mutex.Unlock()
 
@@ -106,7 +116,7 @@ func realMain() (int, error) {
 	// Ensure that the stdout and stderr from the command gets displayed
 	err = pipeCommandOutput(cmd)
 	if err != nil {
-		return 2, err
+		return ExitCommandRunFailed, err
 	}
 
 	// run the command and return it's exit status
@@ -118,7 +128,7 @@ func realMain() (int, error) {
 func RunCommand(cmd *exec.Cmd) (existatus int, err error) {
 	// generic failure
 	if err := cmd.Start(); err != nil {
-		return 2, err
+		return ExitCommandRunFailed, err
 	}
 
 	if err := cmd.Wait(); err != nil {
@@ -127,9 +137,9 @@ func RunCommand(cmd *exec.Cmd) (existatus int, err error) {
 				return status.ExitStatus(), nil
 			}
 		}
-		return 2, err
+		return ExitCommandRunFailed, err
 	}
-	return 0, nil
+	return ExitSuccess, nil
 }
 
 // PipeCommandOutput ensures that the commands output gets piped to seras output
