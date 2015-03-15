@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var ErrUsage = errors.New("Usage: sera <wait-time-in-seconds> <command>")
@@ -84,7 +85,7 @@ func realMain() (int, error) {
 	keyName := strings.Join(os.Args[2:], " ")
 
 	// get the timeout for how long we will for the lock to be available
-	var timeout int
+	var timeout time.Duration
 	if err := timeoutArg(&timeout); err != nil {
 		logger.Err(err.Error())
 		return ExitBadArguments, err
@@ -98,10 +99,10 @@ func realMain() (int, error) {
 	defer db.Close()
 
 	mutex := &MysqlMutex{
-		Name:    md5Hash(keyName),
-		db:      db,
-		Timeout: timeout,
+		Name: md5Hash(keyName),
+		db:   db,
 	}
+	mutex.SetDuration(timeout)
 
 	// Try to get the lock, block until we get the lock or we reached the timeout value
 	if err = mutex.Lock(); err != nil {
@@ -120,12 +121,12 @@ func realMain() (int, error) {
 	}
 
 	// run the command and return it's exit status
-	exitStatus, err := RunCommand(cmd)
+	exitStatus, err := runCommand(cmd)
 	return exitStatus, err
 }
 
 // RunCommand starts the command and waits until it's finished
-func RunCommand(cmd *exec.Cmd) (existatus int, err error) {
+func runCommand(cmd *exec.Cmd) (existatus int, err error) {
 	// generic failure
 	if err := cmd.Start(); err != nil {
 		return ExitCommandRunFailed, err
@@ -162,10 +163,10 @@ func pipeCommandOutput(cmd *exec.Cmd) (err error) {
 }
 
 // timeoutArg get the first argument to sera and returns it as an integer
-func timeoutArg(timeout *int) (err error) {
+func timeoutArg(timeout *time.Duration) (err error) {
 	args := os.Args[1:]
-	seconds, err := strconv.Atoi(args[0])
-	*timeout = seconds
+	seconds, err := strconv.ParseInt(args[0], 10, 0)
+	*timeout = time.Duration(seconds) * time.Second
 	return err
 }
 
