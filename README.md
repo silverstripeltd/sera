@@ -6,20 +6,21 @@ Distributed Mutex locking using a mysql database
 
 ## Introduction
 
-`sera` can stop commands from running at the same time in clustered environment.
-  
-For example you might have two servers running two task at the same time and this can cause
-race conditions. This is normally prevented via a Message Queue (MQ) system, but there are
-cases where using a MQ is over
+`sera` stops commands from running at the same time in clustered environment.
+
+For example you might have two servers making an attempt to run the same task at the same moment, which can cause race
+conditions. This is normally prevented via a Message Queue (MQ) system, but there are cases where using a MQ adds too
+much overhead.
+
+`sera` will only lock out commands with the same footprint from running concurrently. For example `script.sh 10` and
+`script.sh 20` will not be protected from each other - they will run as normal.
 
 `sera` relies on the MySQL `get_lock()` function to ensure that only one instance in a cluster
-is running a command at any time. `get_lock()` is typically not supported in a master-master or 
-master-slave environment.
+is running a command at any time. Note however that `get_lock()` will not work in a Galera cluster.
 
 ## Usage
 
 	sera <wait-time-in-seconds> <command to run> < .. arguments and flags to command>
-
 
 ### wait-time-in-seconds
 
@@ -43,12 +44,13 @@ first and the one to the right timed out after 5 seconds.
 
 `/etc/sera.json`
 
+
 	{
-            "server": "sera:secret@tcp(127.0.0.1:3306)/?timeout=500ms",
-            "syslog": true,
-            "verbose": true
-    }
-    
+		"server": "sera:secret@tcp(127.0.0.1:3306)/?timeout=500ms",
+		"syslog": true,
+		"verbose": true
+	}
+
 **server**:  A Data Source Name string for connecting to a MySQL database, as described 
 here (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[https://github.com/go-sql-driver/mysql#dsn-data-source-name]
 
