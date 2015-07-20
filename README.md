@@ -1,8 +1,8 @@
 # sera
 
 Distributed Mutex locking using a mysql database
-
-[![Build Status](https://travis-ci.org/stojg/sera.svg?branch=master)](https://travis-ci.org/stojg/sera) [![Coverage Status](https://coveralls.io/repos/stojg/sera/badge.svg?branch=master)](https://coveralls.io/r/stojg/sera?branch=master)
+[![Coverage Status](https://coveralls.io/repos/silverstripe-labs/sera/badge.svg?branch=master&service=github)](https://coveralls.io/github/silverstripe-labs/sera?branch=master)
+[![Build Status](https://travis-ci.org/silverstripe-labs/sera.svg?branch=master)](https://travis-ci.org/silverstripe-labs/sera)
 
 ## Introduction
 
