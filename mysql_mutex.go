@@ -14,7 +14,6 @@ import (
 type LockerWithTimeout interface {
 	Lock() error
 	Unlock() error
-	SetDuration(time.Duration)
 }
 
 // ensure the MysqlMutex follows the Locker interface
@@ -22,31 +21,39 @@ var _ = LockerWithTimeout(&MysqlMutex{})
 
 var ErrNoLock = errors.New("failed to acquire lock")
 
+func NewMysqlMutex(db *sql.DB, keyName string, timeout time.Duration) *MysqlMutex {
+	return &MysqlMutex{
+		Name: md5Hash(keyName),
+		db:   db,
+		Timeout: timeout,
+	}
+}
+
 type MysqlMutex struct {
-	Name     string        // Key name
-	Duration time.Duration // Duration for which the lock is valid, DefaultExpiry if 0
-	db       *sql.DB
-	nodem    sync.Mutex
+	Name    string        // Key name
+	Timeout time.Duration // Duration for which the lock is valid, DefaultExpiry if 0
+	db      *sql.DB
+	nodem   sync.Mutex
 }
 
-// Set the timeout duration.
-func (m *MysqlMutex) SetDuration(duration time.Duration) {
-	m.Duration = duration
-}
-
-// Lock locks a value
+// Lock uses the MySQL GET_LOCK() function to ensure that only one caller at time can hold
+// a lock with the same MysqlMutex.Name. It blocks (wait) until MysqlMutex.Timeout value
+// have passed and then returns an ErrNoLock error.
 func (m *MysqlMutex) Lock() error {
-	// Make the process of getting the mysql lock atomic by wrapping it in a mutex.
+	// Make the process of getting the mysql lock atomic by wrapping it in a mutex in
+	// case multiple processes are trying to call this process.
 	m.nodem.Lock()
 	defer m.nodem.Unlock()
 
-	sql := fmt.Sprintf("SELECT GET_LOCK('%s', %d);", m.Name, int(m.Duration.Seconds()))
+	sql := fmt.Sprintf("SELECT GET_LOCK('%s', %d);", m.Name, int(m.Timeout.Seconds()))
 	rows, err := m.db.Query(sql)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
+	// the result of the SELECT GET_LOCK() query should be a single row of 1 (true) for
+	// successful locking or 0 (false) for a lock that is already taken.
 	var value int
 	for rows.Next() {
 		if err := rows.Scan(&value); err != nil {
@@ -59,7 +66,7 @@ func (m *MysqlMutex) Lock() error {
 	return nil
 }
 
-// Unlock unlocks m.
+// Unlock releases the lock
 func (m *MysqlMutex) Unlock() error {
 	m.nodem.Lock()
 	defer m.nodem.Unlock()

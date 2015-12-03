@@ -98,11 +98,7 @@ func realMain() (int, error) {
 	}
 	defer db.Close()
 
-	mutex := &MysqlMutex{
-		Name: md5Hash(keyName),
-		db:   db,
-	}
-	mutex.SetDuration(timeout)
+	mutex := NewMysqlMutex(db, keyName, timeout)
 
 	// Try to get the lock, block until we get the lock or we reached the timeout value
 	if err = mutex.Lock(); err != nil {
