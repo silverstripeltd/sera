@@ -8,42 +8,66 @@ Distributed Mutex locking using a mysql database
 
 `sera` stops commands from running at the same time in clustered environment.
 
-For example you might have two servers making an attempt to run the same task at the same moment, which can cause race
-conditions. This is normally prevented via a Message Queue (MQ) system, but there are cases where using a MQ adds too
-much overhead.
+We want to prevent two servers from running the same task at the same time when
+they can cause cause race conditions. This can be prevented via a Message Queue
+(MQ) or centralised scheduling system.
 
-`sera` will only lock out commands with the same footprint from running concurrently. For example `script.sh 10` and
-`script.sh 20` will not be protected from each other - they will run as normal.
+sera is a simpler solution to preventing a race condition in a multiple server 
+environment.
 
-`sera` relies on the MySQL `get_lock()` function to ensure that only one instance in a cluster
-is running a command at any time. Note however that `get_lock()` will not work in a Galera cluster.
+`sera` will only lock commands with exactly the same arguments from running 
+concurrently. E.g. Running `sera script.sh 10` on server A and 
+`sera script.sh 20` on server B will not be prevented from running at the same 
+time.
+
+`sera` relies on the MySQL `get_lock()` function to ensure that only one 
+server in a cluster is running a command at any time. Note however that 
+`get_lock()` will not work in a Galera cluster or any other Master/Master set 
+up.
 
 ## Usage
 
-	sera <wait-time-in-seconds> <command to run> < .. arguments and flags to command>
+	sera <timeout-in-seconds> <command to run> < .. arguments and flags to command>
 
-### wait-time-in-seconds
+### timeout-in-seconds
 
-This is how many seconds sera will wait for a lock to be released until it gives up and aborts
-running the command. This number can be 0. 
+Sera will wait <timeout-in-seconds> for a lock to be released. If the task is
+currently locked and is not release within that time period, sera will not 
+execute the <command to run>.
+  
+If we want the command to always be executed on every node, but staggered, we 
+set this value to the maximum time (and some more) for the command to be run on 
+every server in the cluster. For example:
 
-### command to run and flags
+long-running-task.sh takes maximum 30 seconds to finish on a server and we have 
+four servers in the cluster. We then set the timeout to 120 seconds (4 * 30sec).
 
-The second and subsequent arguments is what command sera will execute. It will use the name of 
-the commands and arguments as the name for the lock.
+    sera 120 long-running-task.sh
+
+If we don't care which node runs the command, but it's important that it doesn't
+overlap with another execution, we set the <timeout-in-seconds> to 0.
  
-## Example
+    sera 0 there-can-be-only-one.sh
 
-These two commands were started at roughly the same time, but only the one on the left got the lock
-first and the one to the right timed out after 5 seconds.
+### command to run & flags
+
+The second and subsequent arguments is what command sera will execute. Sera will
+make an md5 hash of the commands and arguments and use that as the lock name 
+across the cluster.
+ 
+## Example - Screenshot
+
+These two commands were started at roughly the same time, but only the one on 
+the left got the lock first and the one to the right timed out after 5 seconds.
 
 ![Sera example](https://raw.githubusercontent.com/stojg/sera/master/usage.png)
 
 
 ## Configuration
 
-`/etc/sera.json`
+Sera needs a JSON config file located at  `/etc/sera.json`
 
+Example: 
 
 	{
 		"server": "sera:secret@tcp(127.0.0.1:3306)/?timeout=500ms",
@@ -51,17 +75,38 @@ first and the one to the right timed out after 5 seconds.
 		"verbose": true
 	}
 
-**server**:  A Data Source Name string for connecting to a MySQL database, as described 
-here (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[https://github.com/go-sql-driver/mysql#dsn-data-source-name]
+**server**: A Data Source Name string for connecting to a MySQL database, as 
+described per (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[https://github.com/go-sql-driver/mysql#dsn-data-source-name]
 
 **syslog**: If sera should log errors and failed locking attempts to syslog
 
-**verbose**: if sera should print errors to stdout
-
+**verbose**: if sera should print log messages to stdout
 
 ## Installation:
 
-Add the configuration file and either:
+Add the configuration file `/etc/sera.json` and either:
 
  - Download a binary from the (releases)[https://github.com/stojg/sera/releases]
- - Install via `go get github.com/stojg/sera && go install github.com/stojg/sera`
+ - Install via `go get github.com/silverstripe-labs/sera && go install github.com/silverstripe-labs/sera`
+
+
+## Bash limitations and caveats 
+
+Note normal bash syntax limitation. For example:
+ 
+    sera 5 task.sh; echo "hello" 
+    
+will always execute `echo "hello"` because of the `;`
+
+    sera 5 task.sh && dosomething.sh 
+    
+will only execute `dosomething.sh` if sera got a lock and task.sh succeeded.
+
+    sera 5 task.sh || dosomething.sh
+    
+will only execute `dosomething.sh` if sera couldn't get a lock or if the task.sh
+returned a non zero exit code.
+
+    sera 5 task.sh | wc 
+    
+will pipe the stdout of `task.sh` to `wc`

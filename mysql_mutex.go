@@ -34,9 +34,12 @@ func (m *MysqlMutex) SetDuration(duration time.Duration) {
 	m.Duration = duration
 }
 
-// Lock locks a value
+// Lock uses the MySQL GET_LOCK() function to ensure that only one caller at time can hold
+// a lock with the same MysqlMutex.Name. It blocks (wait) until MysqlMutex.Timeout value
+// have passed and then returns an ErrNoLock error.
 func (m *MysqlMutex) Lock() error {
-	// Make the process of getting the mysql lock atomic by wrapping it in a mutex.
+	// Make the process of getting the mysql lock atomic by wrapping it in a mutex in
+	// case multiple processes are trying to call this process.
 	m.nodem.Lock()
 	defer m.nodem.Unlock()
 
@@ -47,6 +50,8 @@ func (m *MysqlMutex) Lock() error {
 	}
 	defer rows.Close()
 
+	// the result of the SELECT GET_LOCK() query should be a single row of 1 (true) for
+	// successful locking or 0 (false) for a lock that is already taken.
 	var value int
 	for rows.Next() {
 		if err := rows.Scan(&value); err != nil {
@@ -59,7 +64,7 @@ func (m *MysqlMutex) Lock() error {
 	return nil
 }
 
-// Unlock unlocks m.
+// Unlock releases the lock
 func (m *MysqlMutex) Unlock() error {
 	m.nodem.Lock()
 	defer m.nodem.Unlock()
