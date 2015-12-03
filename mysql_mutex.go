@@ -14,7 +14,6 @@ import (
 type LockerWithTimeout interface {
 	Lock() error
 	Unlock() error
-	SetDuration(time.Duration)
 }
 
 // ensure the MysqlMutex follows the Locker interface
@@ -22,16 +21,19 @@ var _ = LockerWithTimeout(&MysqlMutex{})
 
 var ErrNoLock = errors.New("failed to acquire lock")
 
-type MysqlMutex struct {
-	Name     string        // Key name
-	Duration time.Duration // Duration for which the lock is valid, DefaultExpiry if 0
-	db       *sql.DB
-	nodem    sync.Mutex
+func NewMysqlMutex(db *sql.DB, keyName string, timeout time.Duration) *MysqlMutex {
+	return &MysqlMutex{
+		Name: md5Hash(keyName),
+		db:   db,
+		Timeout: timeout,
+	}
 }
 
-// Set the timeout duration.
-func (m *MysqlMutex) SetDuration(duration time.Duration) {
-	m.Duration = duration
+type MysqlMutex struct {
+	Name    string        // Key name
+	Timeout time.Duration // Duration for which the lock is valid, DefaultExpiry if 0
+	db      *sql.DB
+	nodem   sync.Mutex
 }
 
 // Lock uses the MySQL GET_LOCK() function to ensure that only one caller at time can hold
@@ -43,7 +45,7 @@ func (m *MysqlMutex) Lock() error {
 	m.nodem.Lock()
 	defer m.nodem.Unlock()
 
-	sql := fmt.Sprintf("SELECT GET_LOCK('%s', %d);", m.Name, int(m.Duration.Seconds()))
+	sql := fmt.Sprintf("SELECT GET_LOCK('%s', %d);", m.Name, int(m.Timeout.Seconds()))
 	rows, err := m.db.Query(sql)
 	if err != nil {
 		return err
