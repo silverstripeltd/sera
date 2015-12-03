@@ -12,51 +12,52 @@ For example you might have two servers making an attempt to run the same task at
 conditions. This can be prevented via a Message Queue (MQ) or centralised scheduling system, but sometimes you just want
 a simpler solution.
 
-`sera` will only lock commands with exactly the same arguments from running concurrently. For example `sera script.sh 10` and
-`sera script.sh 20` will not be lock each other.
+`sera` will only lock commands with exactly the same arguments from running concurrently. For example `sera script.sh 10`
+ and `sera script.sh 20` will not be blocked from running at the same time.
 
 `sera` relies on the MySQL `get_lock()` function to ensure that only one instance in a cluster
 is running a command at any time. Note however that `get_lock()` will not work in a Galera cluster or any 
-other Master <> Master set up.
+other know Master / Master configuration.
 
 ## Usage
 
-	sera <timeout-in-seconds> <command to run> < .. arguments and flags to command>
+	sera <timeout-in-seconds> <command-to-run> < .. arguments and flags to command>
 
 ### timeout-in-seconds
 
-Sera will wait <timeout-in-seconds> for a lock to be released. If there is no available lock within that time sera will
-abort running the <command to run>.
+Sera will wait <timeout-in-seconds> for a lock to be released. If there is no available lock within that time, sera will
+abort running the <command-to-run>.
   
-If want the command to always be executed on every node, you set this value to the maximum time and some more for the command 
-to be run on every node in the cluster. For example:
+If you want the command to always be executed on every node, you set this value to the maximum time and some more for 
+the command to be run on every node in the cluster. For example:
 
-long-running-task.sh takes maximum 30 seconds to run on a node and you have 4 nodes in the cluster. Then you should call sera
-with a 120 seconds <timeout-in-seconds>
+long-running-task.sh takes maximum 30 seconds to run on a node and you have 4 nodes in the cluster. Then you should call
+set the <timeout-in-seconds> to more than 120. 
 
     sera 120 long-running-task.sh
 
-If it doesn't matter which node runs the command, but it's important that it doesn't run at the same time, you should set the 
- <timeout-in-seconds> to 0.
+If it doesn't matter which node runs the command, but it is still important that it they don't run at the same time, you
+should set the  <timeout-in-seconds> to 0.
  
     sera 0 there-can-be-only-one.sh
 
-### command to run & flags
+### <command-to-run> & flags
 
-The second and subsequent arguments is what command sera will execute. Sera will make an md5 hash of the commands and arguments
-and use that as the lock name across the cluster.
+The second and subsequent arguments is what command sera will execute. Sera will use the <command-to-run> and arguments
+to that command as the name of the lock.
  
 ## Example
 
-These two commands were started at roughly the same time, but only the one on the left got the lock
-first and the one to the right timed out after 5 seconds.
+These two commands were started at roughly the same time, but only the one on the left got the lock first and the one to
+the right timed out after 5 seconds.
 
 ![Sera example](https://raw.githubusercontent.com/stojg/sera/master/usage.png)
 
 
 ## Configuration
 
-Sera is looking for a config file located at  `/etc/sera.json`
+Sera is looking for a configuration file located at  `/etc/sera.json`. It will fail if this lock file is not readable or
+have the correct values.
 
 	{
 		"server": "sera:secret@tcp(127.0.0.1:3306)/?timeout=500ms",
@@ -65,7 +66,7 @@ Sera is looking for a config file located at  `/etc/sera.json`
 	}
 
 **server**:  A Data Source Name string for connecting to a MySQL database, as described 
-here (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[https://github.com/go-sql-driver/mysql#dsn-data-source-name]
+on (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[https://github.com/go-sql-driver/mysql#dsn-data-source-name]
 
 **syslog**: If sera should log errors and failed locking attempts to syslog
 
@@ -77,7 +78,6 @@ Add the configuration file `/etc/sera.json` and either:
 
  - Download a binary from the (releases)[https://github.com/stojg/sera/releases]
  - Install via `go get github.com/silverstripe-labs/sera && go install github.com/silverstripe-labs/sera`
-
 
 ## Caveats
 
