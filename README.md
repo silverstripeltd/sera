@@ -83,7 +83,7 @@ Add the configuration file `/etc/sera.json` and either:
 
 Be wary of normal bash syntax limitation. For example:
  
-    sera 5 task.sh; echo "hello" 
+    sera 5 task.sh; echo "hello"
     
 will always execute `echo "hello"` due to the `;`
 
