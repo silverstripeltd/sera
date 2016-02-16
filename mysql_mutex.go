@@ -23,8 +23,8 @@ var ErrNoLock = errors.New("failed to acquire lock")
 
 func NewMysqlMutex(db *sql.DB, keyName string, timeout time.Duration) *MysqlMutex {
 	return &MysqlMutex{
-		Name: md5Hash(keyName),
-		db:   db,
+		Name:    md5Hash(keyName),
+		db:      db,
 		Timeout: timeout,
 	}
 }
