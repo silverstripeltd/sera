@@ -76,7 +76,7 @@ Example:
 	}
 
 **server**: A Data Source Name string for connecting to a MySQL database, as 
-described per (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[https://github.com/go-sql-driver/mysql#dsn-data-source-name]
+described per [https://github.com/go-sql-driver/mysql#dsn-data-source-name](https://github.com/go-sql-driver/mysql#dsn-data-source-name)
 
 **syslog**: If sera should log errors and failed locking attempts to syslog
 
