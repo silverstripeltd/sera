@@ -86,7 +86,7 @@ described per (https://github.com/go-sql-driver/mysql#dsn-data-source-name)[http
 
 Add the configuration file `/etc/sera.json` and either:
 
- - Download a binary from the (releases)[https://github.com/stojg/sera/releases]
+ - Download a binary from the [releases](https://github.com/silverstripe-labs/sera/releases)
  - Install via `go get github.com/silverstripe-labs/sera && go install github.com/silverstripe-labs/sera`
 
 
