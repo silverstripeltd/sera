@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ func TestTimeoutArgWorks(t *testing.T) {
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 	os.Args = []string{"sera", "10", "ls"}
+	flag.CommandLine.Parse(os.Args[1:])
 
 	expected := time.Second * 10
 	var actual time.Duration
@@ -24,6 +26,7 @@ func TestTimeoutArgFailsOnNonInt(t *testing.T) {
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 	os.Args = []string{"sera", "fail", "ls"}
+	flag.CommandLine.Parse(os.Args[1:])
 
 	expected := time.Duration(0)
 	var actual time.Duration

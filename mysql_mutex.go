@@ -2,29 +2,42 @@ package main
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"sync"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
-// Interface for objects that attempt to get locks, but are not allowed
-// to block forever. The implementors are expected to timeout at some point.
-type LockerWithTimeout interface {
-	Lock() error
-	Unlock() error
+type Queryable interface {
+	Query(query string, args ...interface{}) (QueryableResponse, error)
+}
+type QueryableResponse interface {
+	Close() error
+	Next() bool
+	Scan(dest ...interface{}) error
 }
 
-// ensure the MysqlMutex follows the Locker interface
-var _ = LockerWithTimeout(&MysqlMutex{})
+// sql.DB must be wrapped because the Query method uses a concrete return type (sql.Rows)
+// which does not fit with Queryable interface and prevents us from mocking it.
+type MysqlConnection struct {
+	DB *sql.DB
+}
 
-var ErrNoLock = errors.New("failed to acquire lock")
+func (c *MysqlConnection) Query(query string, args ...interface{}) (QueryableResponse, error) {
+	return c.DB.Query(query, args...)
+}
 
-func NewMysqlMutex(db *sql.DB, keyName string, timeout time.Duration) *MysqlMutex {
+type ErrLockTimeout string
+
+func (e ErrLockTimeout) Error() string {
+	return string(e)
+}
+
+func NewMysqlMutex(q Queryable, keyName string, timeout time.Duration) *MysqlMutex {
 	return &MysqlMutex{
 		Name:    md5Hash(keyName),
-		db:      db,
+		db:      q,
 		Timeout: timeout,
 	}
 }
@@ -32,7 +45,7 @@ func NewMysqlMutex(db *sql.DB, keyName string, timeout time.Duration) *MysqlMute
 type MysqlMutex struct {
 	Name    string        // Key name
 	Timeout time.Duration // Duration for which the lock is valid, DefaultExpiry if 0
-	db      *sql.DB
+	db      Queryable
 	nodem   sync.Mutex
 }
 
@@ -61,7 +74,7 @@ func (m *MysqlMutex) Lock() error {
 		}
 	}
 	if value != 1 {
-		return ErrNoLock
+		return ErrLockTimeout("Timeout out trying to acquire the lock.")
 	}
 	return nil
 }

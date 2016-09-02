@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -22,7 +23,7 @@ import (
 	"time"
 )
 
-var ErrUsage = errors.New("Usage: sera <wait-time-in-seconds> <command>")
+var ErrUsage = errors.New("Usage: sera <flags> -- <wait-time-in-seconds> <command>")
 
 var (
 	conf      Config
@@ -37,13 +38,20 @@ const (
 	ExitBadArguments     = 201
 	ExitLockFailed       = 202
 	ExitCommandRunFailed = 203
+	ExitLockTimedOut     = 204
 )
 
 // Represents the json config for sera
 type Config struct {
-	Server  string `json:"server"`
-	Syslog  bool   `json:"syslog"`
-	Verbose bool   `json:"verbose"`
+	Server      string `json:"server"`
+	Syslog      bool   `json:"syslog"`
+	Verbose     bool   `json:"verbose"`
+	WaitAndSkip bool
+}
+
+func init() {
+	flag.BoolVar(&conf.WaitAndSkip, "wait-and-skip", false, "First to lock will execute, others will wait and skip.")
+	flag.Parse()
 }
 
 func main() {
@@ -77,12 +85,12 @@ func realMain() (int, error) {
 	}
 
 	// Ensure we got all of the required arguments
-	if len(os.Args) < 3 {
+	if len(flag.Args()) < 2 {
 		return ExitBadArguments, ErrUsage
 	}
 
 	// get the name of the key to use as a lock, in this case the command
-	keyName := strings.Join(os.Args[2:], " ")
+	keyName := strings.Join(flag.Args()[1:], " ")
 
 	// get the timeout for how long we will for the lock to be available
 	var timeout time.Duration
@@ -91,27 +99,82 @@ func realMain() (int, error) {
 		return ExitBadArguments, err
 	}
 
-	// create db object
 	db, err := sql.Open("mysql", conf.Server)
 	if err != nil {
 		return ExitLockFailed, err
 	}
 	defer db.Close()
+	conn := &MysqlConnection{DB: db}
 
-	mutex := NewMysqlMutex(db, keyName, timeout)
+	if conf.WaitAndSkip {
+		return waitAndSkip(conn, keyName, timeout)
+	} else {
+		return everyoneExecutes(conn, keyName, timeout)
+	}
+}
 
-	// Try to get the lock, block until we get the lock or we reached the timeout value
-	if err = mutex.Lock(); err != nil {
+// In this type of execution, everyone waits for their turn and then executes the command.
+func everyoneExecutes(c *MysqlConnection, keyName string, timeout time.Duration) (int, error) {
+	mutex := NewMysqlMutex(c, keyName, timeout)
+
+	// Everyone will execute the command, so just wait for our turn.
+	if err := mutex.Lock(); err != nil {
+		if _, ok := err.(ErrLockTimeout); ok {
+			return ExitLockTimedOut, err
+		}
 		return ExitLockFailed, err
 	}
 	defer mutex.Unlock()
 
+	return execute()
+}
+
+// Here, only the first past the post executes the command, the rest waits for the leader
+// to finish, and then exits skipping the execution (the command will most likely run only once).
+//
+// Note this does not assure single execution. If the command is quick to finish, or one of the
+// nodes is slow to enter the critical section, the command might have already run on some other
+// node and there is no way for us to know it. If this is not desired, you need to use some
+// other synchronisation method outside of sera.
+func waitAndSkip(c *MysqlConnection, keyName string, timeout time.Duration) (int, error) {
+	// We need to check whether someone else has already grabbed the lock, force timeout to 0.
+	mutex := NewMysqlMutex(c, keyName, 0)
+	err := mutex.Lock()
+	if err != nil {
+		if _, ok := err.(ErrLockTimeout); !ok {
+			return ExitLockFailed, err
+		}
+
+		if conf.Verbose {
+			fmt.Println("Someone else has the lock - syncing with them, but skipping execution.")
+		}
+		innerMutex := NewMysqlMutex(c, keyName, timeout)
+		if err := innerMutex.Lock(); err != nil {
+			if _, ok := err.(ErrLockTimeout); ok {
+				return ExitLockTimedOut, err
+			}
+			return ExitLockFailed, err
+		}
+		innerMutex.Unlock()
+		return 0, nil
+	} else {
+		if conf.Verbose {
+			fmt.Println("First past the post - executing the command.")
+		}
+		defer mutex.Unlock()
+
+		return execute()
+	}
+}
+
+// Run the proxied command.
+func execute() (int, error) {
 	// create a Cmd
-	cmd := exec.Command(os.Args[2:][0])
-	cmd.Args = os.Args[2:]
+	cmd := exec.Command(flag.Args()[1:][0])
+	cmd.Args = flag.Args()[1:]
 
 	// Ensure that the stdout and stderr from the command gets displayed
-	err = pipeCommandOutput(cmd)
+	err := pipeCommandOutput(cmd)
 	if err != nil {
 		return ExitCommandRunFailed, err
 	}
@@ -160,8 +223,11 @@ func pipeCommandOutput(cmd *exec.Cmd) (err error) {
 
 // timeoutArg get the first argument to sera and returns it as an integer
 func timeoutArg(timeout *time.Duration) (err error) {
-	args := os.Args[1:]
-	seconds, err := strconv.ParseInt(args[0], 10, 0)
+	timeoutArg := flag.Arg(0)
+	if timeoutArg == "" {
+		return errors.New("Duration argument missing.")
+	}
+	seconds, err := strconv.ParseInt(timeoutArg, 10, 0)
 	*timeout = time.Duration(seconds) * time.Second
 	return err
 }
@@ -179,7 +245,7 @@ func log(msg interface{}) {
 	if conf.Verbose {
 		fmt.Printf("%s\n", msg)
 	}
-	cmd := strings.Join(os.Args, " ")
+	cmd := strings.Join(flag.Args(), " ")
 	if conf.Syslog {
 		switch msg.(type) {
 		case error:

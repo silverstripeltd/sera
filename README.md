@@ -27,34 +27,79 @@ up.
 
 ## Usage
 
-	sera <timeout-in-seconds> <command to run> < .. arguments and flags to command>
+	sera <wait-time-in-seconds> <command>
+	sera --wait-and-skip -- <wait-time-in-seconds> <command>
 
-### timeout-in-seconds
+### "wait-time-in-seconds"
 
-Sera will wait <timeout-in-seconds> for a lock to be released. If the task is
-currently locked and is not release within that time period, sera will not 
-execute the <command to run>.
-  
-If we want the command to always be executed on every node, but staggered, we 
-set this value to the maximum time (and some more) for the command to be run on 
-every server in the cluster. For example:
+Sera will wait `<timeout-in-seconds>` for a lock to be released. If the task is
+currently locked and is not released within that time period, sera will not
+execute the `<command>` and will return an error code.
 
-long-running-task.sh takes maximum 30 seconds to finish on a server and we have 
-four servers in the cluster. We then set the timeout to 120 seconds (4 * 30sec).
-
-    sera 120 long-running-task.sh
-
-If we don't care which node runs the command, but it's important that it doesn't
-overlap with another execution, we set the <timeout-in-seconds> to 0.
- 
-    sera 0 there-can-be-only-one.sh
-
-### command to run & flags
+### "command"
 
 The second and subsequent arguments is what command sera will execute. Sera will
 make an md5 hash of the commands and arguments and use that as the lock name 
 across the cluster.
- 
+
+## Use-cases
+
+### Staggered execution
+
+If you need the command to execute on all nodes in a staggered manner, set the `<wait-time-in-seconds>` to the maximum
+time the command will take to execute on N-1 nodes (Nth node will need to wait until all previous nodes succeed before
+it can start).
+
+So for example if a task takes 30 seconds at most, and the cluster has 4 nodes, set the timeout to at least
+(4-1)x30=90.
+
+	sera 90 autoexec.bat
+
+If timeout is reached, the exit code will be set to 204. This exit code should not be ignored, because it signifies
+the node was not able to run the command at all.
+
+### Execute once
+
+If the command needs to run at least once, but we don't care on which node and we are happy to proceed immediately,
+set the `<wait-time-in-seconds>` to 0.
+
+    sera 0 DOS=HIGH,UMB
+
+This will cause sera to exit immediately if the command is already running elsewhere. The exit code will be 204, which
+can be safely discarded in this use-case.
+
+Please see caveat below for assurances made on how many times the command will actually execute.
+
+### Execute once, others wait and skip
+
+If we want the command to execute once, and yet we want to block all nodes until the execution completes, it's
+appropriate to use the `--wait-and-skip` flag. Only the first node will actually perform the operation. All
+other nodes will wait for it to finish, then report success immediately (the lock will still be acquired, but
+then released immediately).
+
+The timeout should be set to the maximum time the command will take to execute on a single node (other nodes will take
+~zero time to execute). For example if the command takes 30 seconds at most, set the `<wait-time-in-seconds>` to 30
+regardless of the amount of nodes in the cluster.
+
+    sera --wait-and-skip -- 30 SET BLASTER=A220 I5 D1 H6 T6 P330 E620
+
+If timeout is reached, the exit code will be set to 204. This code should not be ignored, because we cannot ensure at
+this stage that the command has succeeded on the first node past the post.
+
+Please see caveat below for assurances made on how many times the command will actually execute.
+
+### Caveat: assurances on execution count
+
+In "execute once" and "execute once, others wait and skip" use-cases, we cannot guarantee the command will actually only
+execute once.  This is because we cannot know if some other node has already finished processing (and released the
+lock). We can only tell if the execution is currently on-going. In other words sera works best if all nodes start
+processing more or less at the same time. If one node is significantly late (or early) to the critical section, it will
+cause a stray execution.
+
+This is generally fine if the command is re-entrant (i.e. no harm running it twice), and the longer the command takes
+to complete, to smaller the chance a stray execution will occur. If you you need to guarantee a single execution, you
+will need to use other synchronisation methods.
+
 ## Example - Screenshot
 
 These two commands were started at roughly the same time, but only the one on 
