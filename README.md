@@ -28,7 +28,11 @@ up.
 ## Usage
 
 	sera <wait-time-in-seconds> <command>
-	sera --wait-and-skip -- <wait-time-in-seconds> <command>
+	sera <flags> -- <wait-time-in-seconds> <command>
+
+### Flags
+
+See `sera --help` for the list of flags.
 
 ### "wait-time-in-seconds"
 

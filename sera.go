@@ -39,18 +39,21 @@ const (
 	ExitLockFailed       = 202
 	ExitCommandRunFailed = 203
 	ExitLockTimedOut     = 204
+	ExitExecutionSkipped = 205
 )
 
 // Represents the json config for sera
 type Config struct {
-	Server      string `json:"server"`
-	Syslog      bool   `json:"syslog"`
-	Verbose     bool   `json:"verbose"`
-	WaitAndSkip bool
+	Server            string `json:"server"`
+	Syslog            bool   `json:"syslog"`
+	Verbose           bool   `json:"verbose"`
+	WaitAndSkip       bool
+	DetailedExitCodes bool
 }
 
 func init() {
 	flag.BoolVar(&conf.WaitAndSkip, "wait-and-skip", false, "First to lock will execute, others will wait and skip.")
+	flag.BoolVar(&conf.DetailedExitCodes, "detailed-exit-codes", false, "Return 205 in --wait-and-skip mode if the execution was skipped because another node was already executing.")
 	flag.Parse()
 }
 
@@ -156,6 +159,10 @@ func waitAndSkip(c *MysqlConnection, keyName string, timeout time.Duration) (int
 			return ExitLockFailed, err
 		}
 		innerMutex.Unlock()
+
+		if conf.DetailedExitCodes {
+			return ExitExecutionSkipped, nil
+		}
 		return 0, nil
 	} else {
 		if conf.Verbose {
